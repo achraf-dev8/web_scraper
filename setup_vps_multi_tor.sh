@@ -7,9 +7,8 @@
 echo "[+] Updating package lists and installing Tor & Python dependencies..."
 sudo apt update && sudo apt install -y tor python3-stem python3-pip python3-venv curl netcat-openbsd
 
-echo "[+] Terminating default single-instance Tor service if running..."
-sudo systemctl stop tor 2>/dev/null || true
-sudo mkdir -p /etc/tor
+echo "[+] Terminating existing Tor instances if running..."
+sudo pkill -9 -f torrc 2>/dev/null || true
 
 echo "[+] Configuring 4 Multi-Tor Instances on ports 9050, 9052, 9054, 9056..."
 
@@ -30,10 +29,6 @@ ControlPort 127.0.0.1:$CTRL_PORT
 DataDirectory $DATA_DIR
 CookieAuthentication 0
 EOF
-
-    # Kill old instance process if running on this config
-    sudo pkill -9 -f "torrc_inst_$i" 2>/dev/null || true
-    sudo pkill -9 -f "torrc" 2>/dev/null || true
 
     # Launch native headless Tor instance
     sudo tor -f /etc/tor/torrc_inst_$i --RunAsDaemon 1 --User root
