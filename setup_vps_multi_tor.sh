@@ -21,14 +21,14 @@ for i in 1 2 3 4; do
     echo "  -> Setting up Instance #$i: SOCKS Port $SOCKS_PORT | Control Port $CTRL_PORT"
 
     sudo mkdir -p "$DATA_DIR"
-    sudo chown -R debian-tor:debian-tor "$DATA_DIR" 2>/dev/null || sudo chown -R tor:tor "$DATA_DIR" 2>/dev/null || true
+    sudo chmod 700 "$DATA_DIR"
+    sudo chown -R $(id -u):$(id -g) "$DATA_DIR" 2>/dev/null || true
 
     cat <<EOF | sudo tee /etc/tor/torrc_inst_$i > /dev/null
 SocksPort 127.0.0.1:$SOCKS_PORT
 ControlPort 127.0.0.1:$CTRL_PORT
 DataDirectory $DATA_DIR
 CookieAuthentication 0
-HashedControlPassword ""
 EOF
 
     # Kill old instance process if running
