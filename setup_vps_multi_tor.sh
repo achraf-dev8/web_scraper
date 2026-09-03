@@ -31,8 +31,9 @@ DataDirectory $DATA_DIR
 CookieAuthentication 0
 EOF
 
-    # Kill old instance process if running
-    sudo pkill -f "torrc_inst_$i" 2>/dev/null || true
+    # Kill old instance process if running on this config
+    sudo pkill -9 -f "torrc_inst_$i" 2>/dev/null || true
+    sudo pkill -9 -f "torrc" 2>/dev/null || true
 
     # Launch native headless Tor instance
     sudo tor -f /etc/tor/torrc_inst_$i --RunAsDaemon 1 --User root
