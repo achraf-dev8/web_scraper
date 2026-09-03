@@ -5,10 +5,11 @@
 # ==============================================================================
 
 echo "[+] Updating package lists and installing Tor & Python dependencies..."
-sudo apt update && sudo apt install -y tor stem python3-pip python3-venv curl
+sudo apt update && sudo apt install -y tor python3-stem python3-pip python3-venv curl netcat-openbsd
 
 echo "[+] Terminating default single-instance Tor service if running..."
 sudo systemctl stop tor 2>/dev/null || true
+sudo mkdir -p /etc/tor
 
 echo "[+] Configuring 4 Multi-Tor Instances on ports 9050, 9052, 9054, 9056..."
 
