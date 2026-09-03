@@ -22,7 +22,7 @@ for i in 1 2 3 4; do
 
     sudo mkdir -p "$DATA_DIR"
     sudo chmod 700 "$DATA_DIR"
-    sudo chown -R $(id -u):$(id -g) "$DATA_DIR" 2>/dev/null || true
+    sudo chown -R root:root "$DATA_DIR" 2>/dev/null || true
 
     cat <<EOF | sudo tee /etc/tor/torrc_inst_$i > /dev/null
 SocksPort 127.0.0.1:$SOCKS_PORT
@@ -32,10 +32,10 @@ CookieAuthentication 0
 EOF
 
     # Kill old instance process if running
-    pkill -f "torrc_inst_$i" 2>/dev/null || true
+    sudo pkill -f "torrc_inst_$i" 2>/dev/null || true
 
     # Launch native headless Tor instance
-    sudo tor -f /etc/tor/torrc_inst_$i --RunAsDaemon 1
+    sudo tor -f /etc/tor/torrc_inst_$i --RunAsDaemon 1 --User root
 done
 
 echo "[+] Waiting 5 seconds for Tor circuits to initialize..."
