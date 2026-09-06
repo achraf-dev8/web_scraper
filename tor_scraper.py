@@ -484,7 +484,14 @@ async def fetch_product(
                         ratings=result.get("rating"),
                         image=result.get("image")
                     )
-                return {**result, "name": name, "raw_name": name}
+                return {
+                    **result,
+                    "name": name,
+                    "raw_name": name,
+                    "original_link": link,
+                    "direct_link": test_url,
+                    "used_fallback": False
+                }
 
             # If link is INVALID (404) -> nullify link in DB and fall back to search!
             print(f"Product {index+1} link invalid (404). Nullifying link in DB & falling back to search for '{name[:30]}...'")
@@ -503,7 +510,15 @@ async def fetch_product(
                 image=search_result.get("image")
             )
 
-        return {**search_result, "name": name, "raw_name": name}
+        return {
+            **search_result,
+            "name": name,
+            "raw_name": name,
+            "original_link": link if (link and str(link).strip()) else None,
+            "direct_link_404": True if (link and str(link).strip()) else False,
+            "search_url": search_url,
+            "used_fallback": True
+        }
 
 
 async def process_blocked_retries(
@@ -527,21 +542,54 @@ async def process_blocked_retries(
 # Data Storage & CLI Output
 # ==============================================================================
 def save_results_to_file(results: List[Dict[str, Any]], filepath: str) -> None:
-    """Save scraped product data to a text file."""
+    """Save scraped product data with full execution breakdown to a text file."""
     with open(filepath, "w", encoding="utf-8") as f:
         for idx, product in enumerate(results, 1):
             f.write(f"--- Product #{idx} ---\n")
-            if "error" in product and product["error"]:
-                f.write(f"Error: {product['error']}\n")
-                f.write(f"Name: {product.get('raw_name')}\n")
-                f.write(f"URL: {product.get('url')}\n")
+            has_error = bool(product.get("error"))
+            used_fallback = product.get("used_fallback", False)
+            orig_link = product.get("original_link")
+            is_404 = product.get("direct_link_404", False)
+
+            # 1. STATUS LINE
+            if not has_error:
+                if used_fallback:
+                    f.write("Status: SUCCESS (via Search Fallback)\n")
+                else:
+                    f.write("Status: SUCCESS (Direct Link)\n")
             else:
-                f.write(f"Name/Title: {product.get('title') or product.get('raw_name')}\n")
+                if is_404:
+                    f.write("Status: FAILED (Original Direct Link returned 404 -> Search Fallback Blocked)\n")
+                elif used_fallback:
+                    f.write("Status: FAILED (Search Query Blocked)\n")
+                else:
+                    f.write("Status: FAILED (Direct Link Blocked)\n")
+
+            # 2. ERROR MESSAGE (IF ANY)
+            if has_error:
+                f.write(f"Error: {product['error']}\n")
+
+            # 3. PRODUCT DETAILS
+            f.write(f"Name/Title: {product.get('title') or product.get('raw_name') or product.get('name')}\n")
+            if not has_error:
                 f.write(f"Price: {product.get('price')}\n")
                 f.write(f"Rating: {product.get('rating')}\n")
                 f.write(f"Image: {product.get('image')}\n")
-                f.write(f"URL: {product.get('url')}\n")
+
+            # 4. URL METADATA BREAKDOWN
+            if orig_link:
+                status_note = " -> [404 Not Found]" if is_404 else ""
+                f.write(f"Original Input Direct Link: {orig_link}{status_note}\n")
+            
+            if used_fallback:
+                f.write(f"Fallback Search URL: {product.get('search_url') or product.get('url')}\n")
+                if not has_error and product.get("link"):
+                    f.write(f"Found Product URL: {product.get('link')}\n")
+            else:
+                f.write(f"URL: {product.get('url') or product.get('direct_link')}\n")
+
             f.write("\n")
+
 
 
 def interactive_inspector(products_list: List[Dict[str, Any]]) -> None:
