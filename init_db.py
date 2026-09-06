@@ -34,10 +34,12 @@ def create_database():
         if col in df.columns:
             df[col] = None
 
-    # 4. Preserve all original direct links from CSV
+    # 4. Set 'link' column to NULL (None) for even product indices (50/50 test distribution)
     if "link" in df.columns:
-        df["link"] = df["link"].astype(str).str.strip()
-        df.loc[df["link"].isna() | (df["link"] == "nan") | (df["link"] == ""), "link"] = None
+        # 1-indexed product numbers: odd products (1, 3, 5...) keep direct link, even products (2, 4, 6...) have link set to None
+        even_mask = (df.index + 1) % 2 == 0
+        df.loc[even_mask, "link"] = None
+
 
 
     print(f"Connecting to SQLite database: {DB_FILE}...")
