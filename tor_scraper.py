@@ -98,14 +98,18 @@ async def rotate_tor_ip(control_port: Optional[int] = None) -> bool:
                 with Controller.from_port(port=ctrl_port) as controller:
                     controller.authenticate()
                     controller.signal(Signal.NEWNYM)
-                    print(f"  [TOR IP ROTATE] Sent NEWNYM signal to Control Port {ctrl_port}.")
+                    print(f"  [TOR IP ROTATE] Successfully sent NEWNYM signal to Control Port {ctrl_port}.")
                     rotated = True
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"  [TOR IP ROTATE WARN] Failed to rotate IP on Control Port {ctrl_port}: {e}")
+        else:
+            print(f"  [TOR IP ROTATE WARN] Control Port {ctrl_port} is not active or reachable.")
+
     if rotated:
-        await asyncio.sleep(3)
+        await asyncio.sleep(3.5)
         return True
     return False
+
 
 
 # Initialize Active Tor Proxy Pool
@@ -137,6 +141,7 @@ def get_request_headers(profile: str) -> Dict[str, str]:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/101.0.1210.53"
     }
+
 
 
 # ==============================================================================
@@ -427,6 +432,7 @@ async def fetch_search_product(
                 await asyncio.sleep(random.uniform(RETRY_DELAY_MIN, RETRY_DELAY_MAX))
             else:
                 return {"index": index, "error": str(e), "is_blocked": True, "url": search_url}
+
 
 
 async def fetch_product(
