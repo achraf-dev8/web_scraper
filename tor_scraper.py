@@ -26,8 +26,8 @@ CSV_INPUT_FILE = "amazon_products.csv"
 OUTPUT_FILE = "scraped_products.txt"
 
 # Batch selection settings for database rows
-BATCH_LIMIT = 1000     # How many products to select and scrape
-BATCH_OFFSET = 1000   # Starting row index/offset in database (0 = start from row 1)
+BATCH_LIMIT = 100     # How many products to select and scrape
+BATCH_OFFSET = 0   # Starting row index/offset in database (0 = start from row 1)
 
 MAX_RETRIES = 3
 
@@ -49,8 +49,8 @@ REQUEST_DELAY_MIN = 1.0
 REQUEST_DELAY_MAX = 2.5
 RETRY_DELAY_MIN = 2.5
 RETRY_DELAY_MAX = 4.5
-BLOCKED_RETRY_DELAY = 30 * 60 # 30 minutes
-PROACTIVE_ROTATION_INTERVAL = 30 # Rotate Tor exit IP every N products to prevent anti-bot blocks
+BLOCKED_RETRY_DELAY = 2 * 60  # 10 minutes
+PROACTIVE_ROTATION_INTERVAL = 30  # Rotate Tor exit IP every N products to prevent anti-bot blocks
 
 
 # ==============================================================================
@@ -84,6 +84,10 @@ def detect_active_tor_instances() -> List[Dict[str, Any]]:
 
 async def rotate_tor_ip(control_port: Optional[int] = None) -> bool:
     """Send NEWNYM signal to a specific Tor Control Port (or all active control ports if unspecified)."""
+    if 'ACTIVE_TOR_INSTANCES' in globals() and not ACTIVE_TOR_INSTANCES:
+        # No Tor proxies running - skip rotation silently
+        return False
+
     if control_port:
         target_ports = [control_port]
     elif 'ACTIVE_TOR_INSTANCES' in globals() and ACTIVE_TOR_INSTANCES:
@@ -109,6 +113,7 @@ async def rotate_tor_ip(control_port: Optional[int] = None) -> bool:
         await asyncio.sleep(3.5)
         return True
     return False
+
 
 
 
@@ -352,7 +357,8 @@ async def fetch_direct_product(
 
             if not parsed["title"]:
                 if attempt < MAX_RETRIES:
-                    print(f"Product {index+1} direct attempt {attempt} CAPTCHA block detected! Immediately rotating Tor IP circuit...")
+                    rotate_msg = "Rotating Tor IP circuit..." if ACTIVE_TOR_INSTANCES else "Retrying..."
+                    print(f"Product {index+1} direct attempt {attempt} CAPTCHA block / missing title. {rotate_msg}")
                     await rotate_tor_ip(control_port)
                     await asyncio.sleep(random.uniform(RETRY_DELAY_MIN, RETRY_DELAY_MAX))
                     continue
@@ -377,7 +383,8 @@ async def fetch_direct_product(
                 return {"index": index, "is_404": True, "error": "URL not found (404)", "is_blocked": False, "url": test_url}
             
             if attempt < MAX_RETRIES:
-                print(f"Product {index+1} direct attempt {attempt} error: {e}. Immediately rotating Tor IP circuit...")
+                rotate_msg = "Rotating Tor IP circuit..." if ACTIVE_TOR_INSTANCES else "Retrying..."
+                print(f"Product {index+1} direct attempt {attempt} error: {e}. {rotate_msg}")
                 await rotate_tor_ip(control_port)
                 await asyncio.sleep(random.uniform(RETRY_DELAY_MIN, RETRY_DELAY_MAX))
             else:
@@ -407,7 +414,8 @@ async def fetch_search_product(
             match = parse_search_results_html(response.text)
             if not match:
                 if attempt < MAX_RETRIES:
-                    print(f"Product {index+1} search attempt {attempt} CAPTCHA / No match. Immediately rotating Tor IP circuit...")
+                    rotate_msg = "Rotating Tor IP circuit..." if ACTIVE_TOR_INSTANCES else "Retrying..."
+                    print(f"Product {index+1} search attempt {attempt} CAPTCHA / No match. {rotate_msg}")
                     await rotate_tor_ip(control_port)
                     await asyncio.sleep(random.uniform(RETRY_DELAY_MIN, RETRY_DELAY_MAX))
                     continue
@@ -427,7 +435,8 @@ async def fetch_search_product(
             }
         except Exception as e:
             if attempt < MAX_RETRIES:
-                print(f"Product {index+1} search attempt {attempt} error: {e}. Immediately rotating Tor IP circuit...")
+                rotate_msg = "Rotating Tor IP circuit..." if ACTIVE_TOR_INSTANCES else "Retrying..."
+                print(f"Product {index+1} search attempt {attempt} error: {e}. {rotate_msg}")
                 await rotate_tor_ip(control_port)
                 await asyncio.sleep(random.uniform(RETRY_DELAY_MIN, RETRY_DELAY_MAX))
             else:
