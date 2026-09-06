@@ -33,7 +33,7 @@ REQUEST_DELAY_MIN = 1.5        # Minimum delay between requests (seconds)
 REQUEST_DELAY_MAX = 3.0        # Maximum delay between requests (seconds)
 RETRY_DELAY_MIN = 3.0          # Delay before retrying failed requests
 RETRY_DELAY_MAX = 5.0
-BLOCKED_RETRY_DELAY = 10 * 60  # 10 minutes wait before retrying blocked items
+BLOCKED_RETRY_DELAY = 2 * 60  # 10 minutes wait before retrying blocked items
 
 IMPERSONATE_PROFILES = ["chrome120", "edge101", "safari15_5"]
 
@@ -371,6 +371,7 @@ async def fetch_product(
 
             result = await fetch_direct_product(session, index, test_url)
 
+            # If valid or temporary block (NOT a 404), keep direct link intact!
             if not result.get("is_404"):
                 if not result.get("error"):
                     save_scraped_product(
@@ -389,8 +390,10 @@ async def fetch_product(
                     "used_fallback": False
                 }
 
+            # Only nullify link if it is an explicit 404 (Link dead/deleted by Amazon)
             print(f"Product {index+1} link invalid (404). Nullifying link in DB & falling back to search for '{name[:30]}...'")
             update_product_link(name, None)
+
 
         # CASE 2: Product link is NULL or invalidated (404) -> Search Fallback
         search_url = build_search_url(name)
