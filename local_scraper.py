@@ -33,6 +33,7 @@ REQUEST_DELAY_MIN = 1.5        # Minimum delay between requests (seconds)
 REQUEST_DELAY_MAX = 3.0        # Maximum delay between requests (seconds)
 RETRY_DELAY_MIN = 3.0          # Delay before retrying failed requests
 RETRY_DELAY_MAX = 5.0
+BLOCKED_RETRY_DELAY = 10 * 60  # 10 minutes wait before retrying blocked items
 
 IMPERSONATE_PROFILES = ["chrome120", "edge101", "safari15_5"]
 
@@ -464,6 +465,41 @@ def save_results_to_file(results: List[Dict[str, Any]], filepath: str) -> None:
             f.write("\n")
 
 
+async def process_blocked_retries(
+    session: AsyncSession, 
+    blocked_items: List[Dict[str, Any]], 
+    semaphore: asyncio.Semaphore
+) -> List[Dict[str, Any]]:
+    """Wait before retrying blocked products to allow rate limits to cool down."""
+    print(f"\n[RETRY QUEUE] {len(blocked_items)} link(s) were blocked. Waiting {BLOCKED_RETRY_DELAY} seconds before retrying...")
+    await asyncio.sleep(BLOCKED_RETRY_DELAY)
+
+    retry_tasks = [
+        fetch_product(session, item, semaphore)
+        for item in blocked_items
+    ]
+    return await asyncio.gather(*retry_tasks)
+
+
+def interactive_inspector(products_list: List[Dict[str, Any]]) -> None:
+    """Terminal prompt to query product data by index interactively."""
+    if not sys.stdin.isatty():
+        return
+
+    while True:
+        typed = input("\nEnter product number to show info or 'q' to quit: ").strip()
+        if typed.lower() == 'q':
+            break
+        if not typed.isdigit():
+            print("Please enter a valid number or 'q' to quit.")
+            continue
+        idx = int(typed)
+        if 0 < idx <= len(products_list):
+            print(products_list[idx - 1])
+        else:
+            print("Invalid product number")
+
+
 # ==============================================================================
 # Main Entry Point
 # ==============================================================================
@@ -508,6 +544,15 @@ async def main() -> List[Dict[str, Any]]:
         ]
         results = await asyncio.gather(*tasks)
 
+        # Retry blocked items if any
+        blocked_items = [p for p in results if p.get("is_blocked")]
+        if blocked_items:
+            retry_results = await process_blocked_retries(session, blocked_items, semaphore)
+            results_dict = {p["index"]: p for p in results}
+            for retried in retry_results:
+                results_dict[retried["index"]] = retried
+            results = list(results_dict.values())
+
     results.sort(key=lambda x: x["index"])
 
     elapsed_time = time.time() - start_time
@@ -520,3 +565,5 @@ async def main() -> List[Dict[str, Any]]:
 
 if __name__ == "__main__":
     products = asyncio.run(main())
+    interactive_inspector(products)
+
